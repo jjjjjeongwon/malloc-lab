@@ -21,6 +21,7 @@ static char *mem_max_addr;   /* largest legal heap address */
 
 /* 
  * mem_init - initialize the memory system model
+ * 힙에 가용한 가상메모리를 큰 더블 워드로 정렬된 바이트의 배열로 모델한 것
  */
 void mem_init(void)
 {
