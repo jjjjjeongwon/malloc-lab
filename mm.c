@@ -45,8 +45,8 @@ team_t team = {
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
 //기본 size 상수 정의
-#define WSIZE 4 //워드크기
-#define DSIZE 8 //더블워드 크기
+#define WSIZE 8//워드크기
+#define DSIZE 16 //더블워드 크기
 #define CHUNKSIZE (1<<12)  //초기 가용 블록과 힙 확장을 위한 기본 크기
 
 #define MAX(x,y) ((x) > (y) ?(x):(y))
@@ -73,8 +73,10 @@ static void place(void *bp, size_t asize);
 static void *coalesce(void *bp);
 static void *extend_heap(size_t words);
 static void *first_fit(size_t asize);
+static void *next_fit(size_t asize);
 
 static char *heap_listp;
+static char *nextp;
 
 /* 
  * mm_init - initialize the malloc package.
@@ -94,6 +96,8 @@ int mm_init(void)
 
     if (extend_heap(CHUNKSIZE/WSIZE)==NULL)
         return -1;    
+    
+    nextp = heap_listp;
     return 0;
 }
 
@@ -121,6 +125,7 @@ static void *coalesce(void *bp){
     size_t size = GET_SIZE(HDRP(bp));
 
     if(prev_alloc && next_alloc){
+        nextp = bp;
         return bp;
     }
 
@@ -142,6 +147,7 @@ static void *coalesce(void *bp){
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size,0));
         bp = PREV_BLKP(bp);
     }
+    nextp =bp;
     return bp;
 }
 
@@ -151,15 +157,6 @@ static void *coalesce(void *bp){
  */
 void *mm_malloc(size_t size)
 {
-    // int newsize = ALIGN(size + SIZE_T_SIZE);
-    // void *p = mem_sbrk(newsize);
-    // if (p == (void *)-1)
-	// return NULL;
-    // else {
-    //     *(size_t *)p = size;
-    //     return (void *)((char *)p + SIZE_T_SIZE);
-    // }
-
     size_t asize;
     size_t extendsize;
     char *bp;
@@ -172,7 +169,7 @@ void *mm_malloc(size_t size)
     else 
         asize = DSIZE * ((size +(DSIZE)+(DSIZE-1))/DSIZE);
 
-    if((bp =first_fit(asize))!=NULL){
+    if((bp =next_fit(asize))!=NULL){
         place(bp, asize);
         return bp;
     }
@@ -181,6 +178,7 @@ void *mm_malloc(size_t size)
     if((bp = extend_heap(extendsize/WSIZE))==NULL)
         return NULL;
     place(bp, asize);
+    nextp = bp;
     return bp;
 }
 /*
@@ -243,7 +241,28 @@ void *mm_realloc(void *ptr, size_t size)
 
 
 
+static void *next_fit(size_t asize)
+{
+    char *bp = nextp;
 
+    /* Search from the next fit */
+    for (bp = nextp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)) {
+        if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
+            nextp = bp;
+            return bp;
+        }
+    }
+
+    bp = heap_listp;
+    while (bp < nextp) {
+        bp = NEXT_BLKP(bp);
+        if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) {
+            nextp = bp;
+            return bp;
+        }
+    }
+    return NULL;
+}
 
 
 
